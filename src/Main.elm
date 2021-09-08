@@ -338,7 +338,7 @@ toggleViewButton viewMode =
             row []
                 [ Input.button buttonStyle
                     { onPress = Just ShowAST
-                    , label = el [ centerX, centerY ] (text "AST")
+                    , label = el [ centerX, centerY ] (text "AST    ")
                     }
                 ]
 
@@ -439,6 +439,12 @@ They look like this:
 
 
 sourceText =
+    """
+! heading1  [Introduction]
+"""
+
+
+sourceText10 =
     """
 This is **BOLD.**
 

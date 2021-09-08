@@ -207,6 +207,16 @@ viewElement format k commandName_ source elem =
 
 viewCommand : Format -> Command -> E.Element msg
 viewCommand format ( mLocStr, config ) =
+    let
+        ( locValList, locParamListList ) =
+            config
+
+        _ =
+            Debug.log "valList" (List.map Loc.value locValList)
+
+        _ =
+            Debug.log "paramListList" (List.map Loc.value locParamListList)
+    in
     case mLocStr of
         Nothing ->
             E.none
@@ -226,8 +236,32 @@ viewCommand format ( mLocStr, config ) =
                 "image" ->
                     E.image [ width fill, height (px format.imageHeight) ] { src = arg 0, description = "Image" }
 
+                "heading1" ->
+                    E.row [] (List.map (viewValue format [ Font.size 32, E.paddingEach { emptyPadding | top = 32, bottom = 8 } ]) locValList)
+
+                "heading2" ->
+                    E.row [] (List.map (viewValue format [ Font.size 24, E.paddingEach { emptyPadding | top = 24, bottom = 8 } ]) locValList)
+
+                "heading3" ->
+                    E.row [] (List.map (viewValue format [ Font.bold, Font.size 18, E.paddingEach { emptyPadding | top = 18, bottom = 8 } ]) locValList)
+
+                "list" ->
+                    E.row [ E.paddingEach { emptyPadding | top = 24 } ] []
+
+                "quote" ->
+                    E.row [ E.paddingEach { emptyPadding | top = 24 } ] []
+
                 _ ->
                     E.text commandName
+
+
+emptyPadding =
+    { left = 0, right = 0, top = 0, bottom = 0 }
+
+
+viewMarkup : Format -> List (E.Attribute msg) -> Syntax.Markup -> E.Element msg
+viewMarkup format attr markup =
+    E.wrappedRow attr (List.map (viewText format attr baseStyle) markup |> List.concat)
 
 
 viewValue : Format -> List (E.Attribute msg) -> Loc Value -> E.Element msg
@@ -236,7 +270,7 @@ viewValue format attr val =
         ( _, Syntax.Markup markup ) ->
             el [ paddingXY 0 2, width fill ] <|
                 -- wrappedRow ([ spacingXY 3 6, Background.color (rgb255 245 245 245), width fill, padding 3 ] ++ attr)
-                wrappedRow []
+                wrappedRow [ E.spacing 8 ]
                     (List.concat <| List.map (viewText format attr baseStyle) markup)
 
         _ ->
