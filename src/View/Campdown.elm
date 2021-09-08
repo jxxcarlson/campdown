@@ -1,4 +1,4 @@
-module Campdown exposing (Format, CampdownMsg(..), viewSection)
+module View.Campdown exposing (Format, view)
 
 {-| -}
 
@@ -12,25 +12,16 @@ import Element.Font as Font
 import Html.Attributes
 import List.Extra
 import Maybe.Extra
+import RandomColor exposing (RandomColor)
 
 
 
 -- WHAT IS EXPOSED
 
 
-viewSection : Format -> String -> Maybe Syntax.Section -> E.Element CampdownMsg
-viewSection format source maybeSection =
-    case maybeSection of
-        Nothing ->
-            E.text "No section to show"
-
-        Just section ->
-            viewSection_ format source section
-
-
-type CampdownMsg
-    = GoToSection String
-    | NoMsg
+view : Format -> String -> Syntax.Document -> List (E.Element msg)
+view format source { prelude, sections } =
+    viewElements format "nada" source prelude :: List.map (viewSection format source) sections
 
 
 type alias Format =
@@ -67,8 +58,8 @@ sans =
 -- WALKING THROUGH THE AST
 
 
-viewSection_ : Format -> String -> Syntax.Section -> E.Element CampdownMsg
-viewSection_ format source { level, contents, label } =
+viewSection : Format -> String -> Syntax.Section -> E.Element msg
+viewSection format source { level, contents, label } =
     let
         title =
             case label of
@@ -87,7 +78,7 @@ viewSection_ format source { level, contents, label } =
         ]
 
 
-viewDivert : Format -> String -> String -> Divert -> E.Element CampdownMsg
+viewDivert : Format -> String -> String -> Divert -> E.Element msg
 viewDivert format commandName_ source divert =
     case divert of
         Syntax.Nested elems ->
@@ -124,7 +115,7 @@ viewDivert format commandName_ source divert =
             el [] (E.text <| Loc.value locString)
 
 
-viewElements : Format -> String -> String -> List Syntax.Element -> E.Element CampdownMsg
+viewElements : Format -> String -> String -> List Syntax.Element -> E.Element msg
 viewElements format commandName_ source elements =
     case commandName_ of
         "row" ->
@@ -147,7 +138,7 @@ itemSymbol k commandName_ =
             E.none
 
 
-viewElement : Format -> Int -> String -> String -> Syntax.Element -> E.Element CampdownMsg
+viewElement : Format -> Int -> String -> String -> Syntax.Element -> E.Element msg
 viewElement format k commandName_ source elem =
     case elem of
         Syntax.Paragraph contents ->
@@ -214,7 +205,7 @@ viewElement format k commandName_ source elem =
             E.none
 
 
-viewCommand : Format -> Command -> E.Element CampdownMsg
+viewCommand : Format -> Command -> E.Element msg
 viewCommand format ( mLocStr, config ) =
     case mLocStr of
         Nothing ->
@@ -239,7 +230,7 @@ viewCommand format ( mLocStr, config ) =
                     E.text commandName
 
 
-viewValue : Format -> List (E.Attribute msg) -> Loc Value -> E.Element CampdownMsg
+viewValue : Format -> List (E.Attribute msg) -> Loc Value -> E.Element msg
 viewValue format attr val =
     case val of
         ( _, Syntax.Markup markup ) ->
@@ -249,7 +240,7 @@ viewValue format attr val =
                     (List.concat <| List.map (viewText format attr baseStyle) markup)
 
         _ ->
-            el (attr ++ [ Font.size 15, monospace ]) (E.text <| valueToString val) |> E.map (\_ -> NoMsg)
+            el (attr ++ [ Font.size 15, monospace ]) (E.text <| valueToString val)
 
 
 {-| TODO: think about the below re Rob's remark:
@@ -257,11 +248,14 @@ viewValue format attr val =
 --rather than a list of elements that then get paragraph-concatenated together with
 --spacing, in order to have an actually satisfying markup viewer.'
 -}
-viewText : Format -> List (E.Attribute msg) -> Style -> Text -> List (E.Element CampdownMsg)
-viewText format attr style elem =
-    case elem of
+viewText : Format -> List (E.Attribute msg) -> Style -> Text -> List (E.Element msg)
+viewText format attr style txt =
+    case txt of
         Syntax.Raw str ->
-            List.map (\word -> el (styleAttributes style ++ attr) (E.text word)) (String.split " " str |> List.filter (\s -> String.trim s /= "")) |> List.map (E.map (\_ -> NoMsg))
+            List.map (\word -> el (styleAttributes style ++ attr) (E.text word))
+                (String.split " " str
+                    |> List.filter (\s -> String.trim s /= "")
+                )
 
         --TODO: re the below:
         --I'd just turn inline verbatim comments into preformatted text sections.
@@ -279,33 +273,61 @@ viewText format attr style elem =
                 ]
             ]
 
-        Syntax.Annotation locStr texts mLocString mLocCommand ->
-            let
-                label =
-                    List.map ASTTools.getTextFromText texts |> List.head |> Maybe.withDefault "LABEL"
-            in
-            case mLocCommand of
+        Syntax.Annotation prefix textList maybeSuffix maybeLocCommand ->
+            case maybeLocCommand of
                 Nothing ->
-                    [ E.none ]
+                    let
+                        -- elements : Format -> List (E.Attribute msg) -> Style -> Text -> List (E.Element msg)
+                        elements attr_ =
+                            List.map (viewText format attr_ style) textList |> List.concat
+                    in
+                    case Loc.value prefix of
+                        "**" ->
+                            elements [ Font.bold ]
+
+                        "_" ->
+                            elements [ Font.italic ]
+
+                        _ ->
+                            elements []
 
                 Just locCommand ->
-                    case Loc.value locCommand |> commandData of
-                        Nothing ->
-                            [ E.none ]
-
-                        Just data ->
-                            case data.name of
-                                "link" ->
-                                    [ E.link [ E.moveDown 1.5, Font.size 14, funnyLinkColor ] { url = getArg 0 data.args, label = el [] (E.text label) } ]
-
-                                _ ->
-                                    [ E.none ]
+                    viewCommand_ textList locCommand
 
         Syntax.InlineProblem inline ->
             [ el [] (E.text (Problem.inlineToString inline |> Tuple.second)) ]
 
 
-viewInlineProblem : Problem.Inline -> List (E.Element CampdownMsg)
+viewCommand_ : List Text -> Loc Command -> List (E.Element msg)
+viewCommand_ textList locCommand =
+    let
+        label =
+            List.map ASTTools.getTextFromText textList |> List.head |> Maybe.withDefault "LABEL"
+    in
+    case Loc.value locCommand |> commandData of
+        Nothing ->
+            [ E.none ]
+
+        Just data ->
+            case data.name of
+                "link" ->
+                    [ E.link [ E.moveDown 1.5, Font.size 14, funnyLinkColor ] { url = getArg 0 data.args, label = el [] (E.text label) } ]
+
+                _ ->
+                    [ E.none ]
+
+
+dark : RandomColor -> E.Color
+dark c =
+    E.fromRgb (RandomColor.toRGB 0.99 0.6 c)
+
+
+light : RandomColor -> E.Color
+light c =
+    E.fromRgb (RandomColor.toRGB 0.1 0.99 c)
+
+
+viewInlineProblem : Problem.Inline -> List (E.Element msg)
 viewInlineProblem problem =
     [ row [ Font.size 15, height fill ]
         (el [ height fill, width (px 1) ] E.none

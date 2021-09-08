@@ -27,7 +27,8 @@ import Json.Encode as Encode
 import Markdown
 import Task
 import Url exposing (Url)
-import View
+import View.AST
+import View.Campdown
 
 
 main =
@@ -56,8 +57,8 @@ type Msg
     | UrlClicked UrlRequest
     | UrlChanged Url
     | InputText String
-    | ShowSource
-    | HideSource
+    | ShowAST
+    | ShowCampdown
     | About
     | Dummy String
     | FileRequested
@@ -66,8 +67,8 @@ type Msg
 
 
 type ViewMode
-    = ViewWithSource
-    | ViewDefault
+    = ViewCampdown
+    | ViewAST
     | ViewAbout
 
 
@@ -79,13 +80,13 @@ init : Flags -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
 init flags url key =
     let
         doc =
-            Just (Camperdown.Parse.parse Config.config sourceText)
+            Just (Camperdown.Parse.parse Config.config sourceText |> Debug.log "AST")
     in
     ( { key = key
       , url = url
       , contents = sourceText
       , document = doc
-      , viewMode = ViewDefault
+      , viewMode = ViewAST
       }
     , Cmd.none
     )
@@ -105,7 +106,14 @@ update msg model =
             ( loadContent model str, Cmd.none )
 
         InputText str ->
-            ( { model | contents = str, viewMode = ViewWithSource }, Cmd.none )
+            ( { model
+                | contents = str
+
+                --, viewMode = ViewCampdown
+                , document = Just (Camperdown.Parse.parse Config.config str)
+              }
+            , Cmd.none
+            )
 
         UrlClicked urlRequest ->
             case urlRequest of
@@ -120,17 +128,17 @@ update msg model =
         UrlChanged _ ->
             ( model, Cmd.none )
 
-        ShowSource ->
-            ( { model | viewMode = ViewWithSource }, Cmd.none )
+        ShowAST ->
+            ( { model | viewMode = ViewCampdown }, Cmd.none )
 
-        HideSource ->
-            ( { model | viewMode = ViewDefault }, Cmd.none )
+        ShowCampdown ->
+            ( { model | viewMode = ViewAST }, Cmd.none )
 
         About ->
             ( { model | viewMode = ViewAbout }, Cmd.none )
 
         Dummy _ ->
-            ( { model | viewMode = ViewDefault }, Cmd.none )
+            ( { model | viewMode = ViewAST }, Cmd.none )
 
         FileRequested ->
             ( model, Select.file [ "text/txt" ] FileSelected )
@@ -175,10 +183,10 @@ view model =
 mainColumn : Model -> Element Msg
 mainColumn model =
     column mainColumnStyle
-        [ column [ spacing 36, width (px 700), height (px 800), scrollbarY ]
+        [ column [ spacing 36, width (px 1200), height (px 800), scrollbarY ]
             [ row [ spacing 12, centerX, centerY ]
                 [ el [ Font.size 24 ] (text "Campdown Demo")
-                , showSourceButton model.viewMode
+                , toggleViewButton model.viewMode
                 , requestFileButton
                 , aboutButton model.viewMode
                 ]
@@ -187,14 +195,51 @@ mainColumn model =
         ]
 
 
-viewDocument : Model -> Element msg
 viewDocument model =
+    case model.viewMode of
+        ViewAST ->
+            viewAST model
+
+        ViewCampdown ->
+            viewCampDown model
+
+        ViewAbout ->
+            text "Not implemented"
+
+
+viewCampDown : Model -> Element msg
+viewCampDown model =
     case model.document of
         Nothing ->
             Element.none
 
         Just doc ->
-            View.view model.contents doc |> column []
+            column [ height (px 700), width (px 500), scrollbarY ]
+                (View.Campdown.view ourFormat model.contents doc)
+
+
+ourFormat =
+    -- Units = pixels
+    { imageHeight = 300
+    , lineWidth = 500
+    , leftPadding = 15
+    , bottomPadding = 8
+    , topPadding = 8
+    }
+
+
+
+-- |> column [ height (px 700), width (px 500), scrollbarY ]
+
+
+viewAST : Model -> Element msg
+viewAST model =
+    case model.document of
+        Nothing ->
+            Element.none
+
+        Just doc ->
+            View.AST.view model.contents doc |> column [ height (px 700), width (px 500), scrollbarY ]
 
 
 panelWidth model =
@@ -213,23 +258,25 @@ verticalSpreaderHeight =
     24
 
 
-panelHeight model =
-    height (px (model.height - headerHeight - verticalSpreaderHeight - 30))
 
-
-editor2 model =
-    el [ panelWidth model, panelHeight model ]
-        (html <|
-            Html.node "custom-editor"
-                [ Html.Attributes.property "editorContents" <|
-                    Encode.string model.contents
-                , Html.Events.on "editorChanged" <|
-                    Decode.map CodeChanged <|
-                        Decode.at [ "target", "editorContents" ] <|
-                            Decode.string
-                ]
-                []
-        )
+--
+--panelHeight model =
+--    height (px (model.height - headerHeight - verticalSpreaderHeight - 30))
+--
+--
+--editor2 model =
+--    el [ panelWidth model, panelHeight model ]
+--        (html <|
+--            Html.node "custom-editor"
+--                [ Html.Attributes.property "editorContents" <|
+--                    Encode.string model.contents
+--                , Html.Events.on "editorChanged" <|
+--                    Decode.map CodeChanged <|
+--                        Decode.at [ "target", "editorContents" ] <|
+--                            Decode.string
+--                ]
+--                []
+--        )
 
 
 loadContent : Model -> String -> Model
@@ -249,7 +296,15 @@ documentFromString str =
 
 
 editor model =
-    column [ width fill, height fill, Background.color (rgb255 255 212 220), padding 40 ] [ text "EDITOR" ]
+    -- TODO: finish this!
+    -- column [ width fill, height fill, Background.color (rgb255 255 212 220), padding 40 ] [ text "EDITOR" ]
+    Input.multiline [ width (px 500), height (px 700), Background.color (rgb255 255 212 220), padding 40, Font.size 14 ]
+        { onChange = InputText
+        , text = model.contents
+        , placeholder = Nothing
+        , label = Input.labelHidden "Editor"
+        , spellcheck = False
+        }
 
 
 format =
@@ -276,22 +331,22 @@ inputText model =
         }
 
 
-showSourceButton : ViewMode -> Element Msg
-showSourceButton viewMode =
+toggleViewButton : ViewMode -> Element Msg
+toggleViewButton viewMode =
     case viewMode of
-        ViewDefault ->
+        ViewAST ->
             row []
                 [ Input.button buttonStyle
-                    { onPress = Just ShowSource
-                    , label = el [ centerX, centerY ] (text "Show Source")
+                    { onPress = Just ShowAST
+                    , label = el [ centerX, centerY ] (text "AST")
                     }
                 ]
 
-        ViewWithSource ->
+        ViewCampdown ->
             row []
                 [ Input.button buttonStyle
-                    { onPress = Just HideSource
-                    , label = el [ centerX, centerY ] (text "Hide Source")
+                    { onPress = Just ShowCampdown
+                    , label = el [ centerX, centerY ] (text "Campdown")
                     }
                 ]
 
@@ -315,7 +370,7 @@ aboutButton viewMode =
         ViewAbout ->
             row []
                 [ Input.button buttonStyle
-                    { onPress = Just HideSource
+                    { onPress = Just ShowCampdown
                     , label = el [ centerX, centerY ] (text "Campdown")
                     }
                 ]
@@ -357,7 +412,63 @@ buttonStyle =
 -- DATA
 
 
+sourceText9 =
+    """
+Math: $\\LaTeX$"""
+
+
+sourceText6 =
+    """
+The text of a lesson is pretty simple. You can use **bold** and _italic_ text. You can add inline math using $\\LaTeX$.
+"""
+
+
+sourceText7 =
+    """
+%%% You can add comments if you need them.
+    Comments can span multiple lines if necessary. Just keep indenting
+"""
+
+
+sourceText8 =
+    """
+You can also add preformatted text blocks (i.e. code blocks)
+using $```$, and you can add multi-line math with `$$$`.
+They look like this:
+"""
+
+
 sourceText =
+    """
+This is **BOLD.**
+
+This is _italic._
+
+[NYT](link "http://nytimes.com")
+"""
+
+
+sourceText4 =
+    """
+You can use **bold**.
+"""
+
+
+sourceText3 =
+    """
+!heading1 [writing text]
+
+The text of a lesson is pretty simple.
+You can use **bold** and _italic_ text.
+You can add inline math using $\\LaTeX$.
+"""
+
+
+sourceText1 =
+    """go to [Fraance](link "france-entry")."""
+
+
+sourceText2 =
     """
 
 # The beginning

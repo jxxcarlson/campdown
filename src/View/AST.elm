@@ -1,4 +1,4 @@
-module View exposing (view)
+module View.AST exposing (view)
 
 -- exposing (Document, Label(..), Section)
 
@@ -22,6 +22,10 @@ import RandomColor exposing (RandomColor)
 margins : Int
 margins =
     3
+
+
+panelWidth =
+    width (px 500)
 
 
 
@@ -58,26 +62,26 @@ viewSection source { level, contents, label } =
                 _ ->
                     [ Font.size 16, Font.bold, Font.italic, Font.color (rgb255 100 100 100) ]
     in
-    column [ width fill ]
+    column [ panelWidth ]
         [ paragraph (sans :: attrs) [ text title ], viewElements source contents ]
 
 
 viewElements : String -> List Syntax.Element -> Element.Element msg
 viewElements source elements =
-    column [ width fill ] <| List.map (viewElement source) elements
+    column [ panelWidth ] <| List.map (viewElement source) elements
 
 
 viewDivert : String -> Syntax.Divert -> Element.Element msg
 viewDivert source divert =
     case divert of
         Syntax.Nested elems ->
-            row [ padding margins, width fill ]
-                [ el [ Background.color (rgb255 245 245 245), width fill, padding margins ] (viewElements source elems)
+            row [ padding margins, panelWidth ]
+                [ el [ Background.color (rgb255 245 245 245), panelWidth, padding margins ] (viewElements source elems)
                 ]
 
         Syntax.Immediate elems ->
-            row [ padding margins, width fill ]
-                [ el [ Background.color (rgb255 245 245 245), width fill, padding margins ] (viewElements source elems)
+            row [ padding margins, panelWidth ]
+                [ el [ Background.color (rgb255 245 245 245), panelWidth, padding margins ] (viewElements source elems)
                 ]
 
         Syntax.Reference elems ->
@@ -88,24 +92,24 @@ viewElement : String -> Syntax.Element -> Element.Element msg
 viewElement source elem =
     case elem of
         Syntax.Paragraph { contents } ->
-            row [ width fill, paddingEach { top = 3, bottom = 8, left = 0, right = 0 } ]
-                [ wrappedRow [ width fill, spacingXY 6 3 ]
+            row [ panelWidth, paddingEach { top = 3, bottom = 8, left = 0, right = 0 } ]
+                [ wrappedRow [ panelWidth, spacingXY 6 3 ]
                     (List.concat <| List.map (viewText RandomColor.third baseStyle) contents)
                 ]
 
         Syntax.Preformatted { contents } ->
-            row [ width fill ]
+            row [ panelWidth ]
                 [ el [ monospace, Font.size 15, Element.htmlAttribute (Html.Attributes.style "white-space" "pre") ]
                     (text <| contents)
                 ]
 
         Syntax.Item { children } ->
-            row [ width fill ]
+            row [ panelWidth ]
                 [ el [ height fill, width (px 1), Background.color (rgb255 50 50 50) ] none
-                , column [ width fill, Background.color (rgb255 225 225 225) ]
-                    [ el [ height (px 1), width fill, Background.color (rgb255 50 50 50) ] none
-                    , row [ padding margins, width fill ]
-                        [ el [ Background.color (rgb255 245 245 245), width fill ] (viewElements source children)
+                , column [ panelWidth, Background.color (rgb255 225 225 225) ]
+                    [ el [ height (px 1), panelWidth, Background.color (rgb255 50 50 50) ] none
+                    , row [ padding margins, panelWidth ]
+                        [ el [ Background.color (rgb255 245 245 245), panelWidth ] (viewElements source children)
                         ]
                     ]
                 ]
@@ -126,10 +130,10 @@ viewElement source elem =
                 --    ( Syntax.Huh, _ ) ->
                 --        rgb255 225 225 225
             in
-            row [ width fill ]
+            row [ panelWidth ]
                 [ el [ height fill, width (px 1), Background.color (rgb255 50 50 50) ] none
-                , column [ width fill, Background.color color ]
-                    [ el [ height (px 1), width fill, Background.color (rgb255 50 50 50) ] none
+                , column [ panelWidth, Background.color color ]
+                    [ el [ height (px 1), panelWidth, Background.color (rgb255 50 50 50) ] none
                     , viewCommand command
                     , case child of
                         Nothing ->
@@ -161,10 +165,10 @@ viewElement source elem =
                         |> List.intersperse "\n"
                         |> String.concat
             in
-            row [ width fill, paddingEach { top = 5, bottom = 5, left = 0, right = 0 } ]
+            row [ panelWidth, paddingEach { top = 5, bottom = 5, left = 0, right = 0 } ]
                 [ el [ height fill, width (px 1), Background.color (dark RandomColor.first) ] none
-                , column [ width fill, Background.color (light RandomColor.first) ]
-                    [ el [ width fill, height (px 1), Background.color (dark RandomColor.first) ] none
+                , column [ panelWidth, Background.color (light RandomColor.first) ]
+                    [ el [ panelWidth, height (px 1), Background.color (dark RandomColor.first) ] none
                     , paragraph [ Font.size 15, sans, paddingXY margins 4 ] [ text <| "Error line " ++ String.fromInt loc.start.line ++ ", position " ++ String.fromInt loc.start.column ]
                     , paragraph [ Font.size 15, sans, paddingXY margins 4 ] [ text <| problem ]
                     , el [ padding margins ]
@@ -194,8 +198,8 @@ viewCommand ( maybeLocString, ( locValues, locParameters ) ) =
                 Just c ->
                     Loc.value c
     in
-    column [ width fill, paddingXY 0 2 ]
-        [ wrappedRow [ width fill, paddingEach { top = 2, bottom = 2, left = margins, right = margins }, spacingXY 6 0 ]
+    column [ panelWidth, paddingXY 0 2 ]
+        [ wrappedRow [ panelWidth, paddingEach { top = 2, bottom = 2, left = margins, right = margins }, spacingXY 6 0 ]
             (el [ Font.size 15, monospace, Font.bold ] (text <| commandName)
                 :: List.map viewValue locValues
             )
@@ -215,7 +219,7 @@ viewValue : Loc Syntax.Value -> Element.Element msg
 viewValue val =
     case val of
         ( _, Syntax.Markup markup ) ->
-            el [ paddingXY 0 2, width fill ] <| wrappedRow [ spacingXY 3 6, Background.color (rgb255 245 245 245), width fill, padding 3 ] (List.concat <| List.map (viewText RandomColor.third baseStyle) markup)
+            el [ paddingXY 0 2, panelWidth ] <| wrappedRow [ spacingXY 3 6, Background.color (rgb255 245 245 245), panelWidth, padding 3 ] (List.concat <| List.map (viewText RandomColor.third baseStyle) markup)
 
         _ ->
             el [ Font.size 15, monospace ] (text <| valueToString val)
@@ -240,6 +244,7 @@ valueToString v =
 viewText : RandomColor -> Style -> Syntax.Text -> List (Element.Element msg)
 viewText color style elem =
     let
+        meta : String -> Element msg
         meta str =
             row [ monospace, height fill, Font.size 15, Background.color (light color) ]
                 [ el [ height fill, width (px 1), Background.color (dark color) ] none
@@ -252,6 +257,10 @@ viewText color style elem =
             List.map (\word -> el (styleAttributes style) (text word)) (String.split " " str |> List.filter (\s -> String.trim s /= ""))
 
         Syntax.Verbatim ch ( _, str ) ->
+            let
+                _ =
+                    Debug.log "Verbatim" str
+            in
             [ row [ monospace, height fill, Font.size 15, Background.color (light RandomColor.second) ]
                 [ el [ height fill, width (px 1), Background.color (dark RandomColor.second) ] none
                 , el [ height fill, Font.color (dark RandomColor.second) ] (text <| String.fromChar ch)
@@ -261,40 +270,19 @@ viewText color style elem =
                 ]
             ]
 
-        Syntax.Annotation locStr texts mLocString mLocCommand ->
-            --let
-            --    command =
-            --        case maybeLocCommand of
-            --            Nothing ->
-            --                ""
-            --
-            --            Just ( _, cmd ) ->
-            --                cmd
-            --
-            --    suffix =
-            --        case maybeLocString of
-            --            Nothing ->
-            --                ""
-            --
-            --            Just ( _, suffix_ ) ->
-            --                suffix
-            --
-            -- in
-            -- meta start ::
-            List.concat <| List.map (viewText (RandomColor.next color) style) texts
+        Syntax.Annotation prefix textList maybeSuffix maybeLocCommand ->
+            meta (Loc.value prefix)
+                :: (List.concat <|
+                        List.map (viewText (RandomColor.next color) style) textList
+                   )
+                ++ (case maybeLocCommand of
+                        Nothing ->
+                            [ meta <| Maybe.withDefault "" (Maybe.map Loc.value maybeSuffix) ]
 
-        --++ (case ( cmd, arguments, parameters ) of
-        --        ( Nothing, _, _ ) ->
-        --            case end of
-        --                Nothing ->
-        --                    []
-        --
-        --                Just marker ->
-        --                    [ meta marker ]
-        --
-        --        ( Just _, _, _ ) ->
-        --            [ meta <| Maybe.withDefault "" end ++ "(...)" ]
-        --   )
+                        Just _ ->
+                            [ meta <| Maybe.withDefault "" (Maybe.map Loc.value maybeSuffix) ++ "(..)" ]
+                   )
+
         Syntax.InlineProblem problem ->
             text " " :: viewInlineProblem problem ++ [ text " " ]
 
